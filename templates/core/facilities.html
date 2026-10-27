@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}施設 | FC経営管理{% endblock %}
+{% block breadcrumbs %}<p class="breadcrumbs">ホーム / 施設</p>{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>施設マスタ</h1><p>店舗・工場・本部・その他施設を管理します。</p></div></div>
+<form method="get" class="filters">
+  <input name="q" value="{{ request.GET.q }}" placeholder="名称・店舗コード">
+  <select name="type"><option value="">全種別</option>{% for value,label in types %}<option value="{{ value }}" {% if request.GET.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <select name="group"><option value="">全所属拠点</option>{% for group in groups %}<option value="{{ group.pk }}" {% if request.GET.group == group.pk|stringformat:"s" %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select>
+  <label class="check"><input type="checkbox" name="deleted" value="1" {% if include_deleted %}checked{% endif %}>削除済みも表示</label>
+  <button>検索</button>
+</form>
+<div class="two-column">
+<section class="panel wide"><table><thead><tr><th><a href="?order=official_name">施設名</a></th><th>コード</th><th>種別</th><th>所属拠点</th><th>運営</th><th>状態</th></tr></thead><tbody>{% for item in items %}<tr class="{% if item.deleted_at %}deleted{% endif %}"><td><a href="{% url 'facility_detail' item.pk %}">{{ item.official_name }}</a></td><td>{{ item.pos_store_code|default:"—" }}</td><td>{{ item.get_type_display }}</td><td>{{ item.facility_group.name }}</td><td>{{ item.get_ownership_display }}</td><td>{% if item.deleted_at %}削除済み{% else %}{{ item.get_status_display }}{% endif %}</td></tr>{% empty %}<tr><td colspan="6">施設がありません。</td></tr>{% endfor %}</tbody></table></section>
+<section class="panel"><h2>施設を追加</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary">登録</button></form></section>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}取込プレビュー | FC経営管理{% endblock %}
+{% block content %}
+<p class="breadcrumbs"><a href="{% url 'imports' %}">CSV取込</a> / プレビュー</p>
+<div class="page-title"><div><h1>取込プレビュー</h1><p>{{ job.data_kind }} / {{ job.payload.months|join:", " }}</p></div><span class="badge {% if job.state == 'COMPLETED' %}success{% elif job.state == 'FAILED' %}error{% else %}warning{% endif %}">{{ job.get_state_display }}</span></div>
+<div class="kpi-grid"><article><span>対象月</span><strong>{{ job.payload.months|length }}</strong></article><article><span>明細件数</span><strong>{{ job.payload.rows|length }}</strong></article><article><span>未照合</span><strong>{{ current_unmatched|length }}</strong></article></div>
+{% if current_unmatched %}<section class="panel"><h2>未照合マスタ</h2><p class="message warning">取込確定前に施設または従業員を登録してください。</p><table><thead><tr><th>種別</th><th>コード</th><th>名称</th></tr></thead><tbody>{% for row in current_unmatched %}<tr><td>{{ row.type }}</td><td>{{ row.code }}</td><td>{{ row.name }}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
+{% if current_warnings %}<section class="panel"><h2>警告</h2><ul>{% for warning in current_warnings %}<li>{{ warning }}</li>{% endfor %}</ul></section>{% endif %}
+<section class="panel"><h2>確定</h2><p>同種・同月の既存データはすべて置換されます。他の月は変更されません。</p><form method="post" action="{% url 'import_commit' job.pk %}" onsubmit="this.querySelector('button').disabled=true">{% csrf_token %}<button class="primary" {% if current_unmatched or job.state == "COMPLETED" %}disabled{% endif %}>{% if job.state == "COMPLETED" %}取込完了{% else %}取込を確定{% endif %}</button></form>{% if job.result_summary.error %}<div class="message error">{{ job.result_summary.error }}</div>{% endif %}</section>
+{% endblock %}

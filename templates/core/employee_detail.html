@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} | FC経営管理{% endblock %}
+{% block content %}
+<p class="breadcrumbs"><a href="{% url 'employees' %}">従業員</a> / {{ item.name }}</p>
+<div class="page-title"><div><h1>{{ item.name }}</h1><p>従業員コード {{ item.employee_code }}</p></div><form method="post" action="{% url 'employee_toggle_hidden' item.pk %}">{% csrf_token %}<button>{% if item.hidden_at %}復帰{% else %}非表示{% endif %}</button></form></div>
+<div class="two-column"><section class="panel wide"><h2>所属履歴</h2><p class="muted">その月以前の最新履歴を適用し、初回以前には初回履歴を遡及適用します。</p><table><thead><tr><th>開始月</th><th>施設</th><th></th></tr></thead><tbody>{% for assignment in item.assignments.all %}<tr><td>{{ assignment.effective_month|date:"Y年n月" }}{% if forloop.first %} <span class="badge success">現所属</span>{% endif %}</td><td>{{ assignment.facility.official_name }}</td><td><form method="post" action="{% url 'assignment_delete' item.pk assignment.pk %}" onsubmit="return confirm('過去給与の計上先が変わります。削除しますか？')">{% csrf_token %}<button class="danger small">削除</button></form></td></tr>{% empty %}<tr><td colspan="3">所属が未設定です。</td></tr>{% endfor %}</tbody></table></section><section class="panel"><h2>所属を追加・更新</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary">保存</button></form></section></div>
+{% endblock %}

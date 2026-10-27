@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}ユーザー | FC経営管理{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>管理者ユーザー</h1><p>β版では全ユーザーが同一権限です。</p></div></div>
+<div class="two-column"><section class="panel wide"><table><thead><tr><th>メール</th><th>登録日時</th><th>状態</th></tr></thead><tbody>{% for item in items %}<tr><td>{{ item.email }}</td><td>{{ item.date_joined|date:"Y年n月j日 H:i" }}</td><td>{% if item.is_active %}有効{% else %}無効{% endif %}</td></tr>{% endfor %}</tbody></table></section><section class="panel"><h2>ユーザー追加</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary">作成</button></form></section></div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load ja_format %}
+{% block title %}ダッシュボード | FC経営管理{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>ダッシュボード</h1><p>給与・備品・FCロイヤリティまでを反映した暫定値です。</p></div>{% if is_provisional %}<span class="badge warning">暫定</span>{% endif %}</div>
+<form method="get" class="filters">
+  <label>開始月<input type="month" name="from" value="{{ start|date:'Y-m' }}"></label>
+  <label>終了月<input type="month" name="to" value="{{ end|date:'Y-m' }}"></label>
+  <label>売上指標<select name="salesBasis"><option value="total" {% if basis == "total" %}selected{% endif %}>売上合計</option><option value="cleaning" {% if basis == "cleaning" %}selected{% endif %}>クリーニング売上</option></select></label>
+  <button class="primary">表示</button>
+</form>
+<div class="kpi-grid">
+  <article><span>売上</span><strong>{{ totals.sales|yen }}</strong></article>
+  <article><span>人件費</span><strong>{{ totals.labor|yen }}</strong></article>
+  <article><span>備品費</span><strong>{{ totals.supplies|yen }}</strong></article>
+  <article><span>FCロイヤリティ</span><strong>{{ totals.royalty|yen }}</strong></article>
+  <article class="accent"><span>暫定収支</span><strong>{{ totals.balance|yen }}</strong></article>
+</div>
+{% if unassigned_labor %}<div class="message warning">所属未設定の人件費 {{ unassigned_labor|yen }} は施設別集計に含めていません。</div>{% endif %}
+<div class="two-column">
+  <section class="panel"><h2>月次推移</h2><table><thead><tr><th>月</th><th>売上</th><th>費用</th><th>暫定収支</th><th>状態</th></tr></thead><tbody>{% for row in monthly %}<tr><td>{{ row.month|jp_month }}</td><td>{{ row.sales|yen }}</td><td>{{ row.cost|yen }}</td><td>{{ row.balance|yen }}</td><td>{% if row.provisional %}<span class="badge warning">暫定</span>{% else %}<span class="badge success">確定</span>{% endif %}</td></tr>{% endfor %}</tbody></table></section>
+  <section class="panel"><h2>店舗ランキング</h2><table><thead><tr><th>店舗</th><th>売上</th><th>暫定収支</th></tr></thead><tbody>{% for row in ranking %}<tr><td><a href="{% url 'facility_detail' row.facility.pk %}">{{ row.facility.official_name }}</a></td><td>{{ row.sales|yen }}</td><td>{{ row.balance|yen }}</td></tr>{% empty %}<tr><td colspan="3">対象店舗がありません。</td></tr>{% endfor %}</tbody></table></section>
+</div>
+<section class="panel"><h2>施設種別内訳</h2><div class="kpi-grid">{% for label, row in by_type.items %}<article><span>{{ label }}</span><strong>{{ row.balance|yen }}</strong><small>売上 {{ row.sales|yen }} / 費用 {{ row.cost|yen }}</small></article>{% empty %}<p>施設を登録してください。</p>{% endfor %}</div></section>
+{% endblock %}
