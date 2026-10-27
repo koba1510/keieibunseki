@@ -76,9 +76,8 @@ class CsvAdapterTests(SimpleTestCase):
                 ["令和8年8月分給与", ""],
                 ["", "匿名 太郎（00003）"],
                 ["支給額合計", "300000"],
-                ["健康保険料", "15000"],
-                ["介護保険料", "2000"],
-                ["厚生年金保険", "27000"],
+                ["その他合計", "5000"],
+                ["社会保険料合計", "44000"],
                 ["雇用保険料", "1000"],
             ]
         )
@@ -87,12 +86,27 @@ class CsvAdapterTests(SimpleTestCase):
         parsed = parse_payroll(self.payroll_fixture())
         self.assertEqual(parsed["rows"][0]["employee_code"], "00003")
 
-    def test_payroll_social_estimate_excludes_employment_insurance(self):
+    def test_payroll_payment_and_insurance_formula(self):
         parsed = parse_payroll(self.payroll_fixture())
-        self.assertEqual(parsed["rows"][0]["employer_social_estimate"], 44000)
+        self.assertEqual(parsed["rows"][0]["total_payment"], 305000)
+        self.assertEqual(parsed["rows"][0]["employer_social_estimate"], 46300)
+
+    def test_payroll_can_skip_employee_codes(self):
+        data = csv_bytes(
+            [
+                ["令和8年8月分給与", ""],
+                ["", "匿名 太郎（00003）", "てすと 太郎（999）"],
+                ["支給額合計", "300000", "1"],
+                ["その他合計", "0", "0"],
+                ["社会保険料合計", "100", "0"],
+                ["雇用保険料", "0", "0"],
+            ]
+        )
+        parsed = parse_payroll(data, skip_employee_codes={"999"})
+        self.assertEqual([row["employee_code"] for row in parsed["rows"]], ["00003"])
 
     def test_payroll_rejects_duplicate_required_label(self):
-        data = self.payroll_fixture().decode("utf-8-sig") + "\n健康保険料,15000"
+        data = self.payroll_fixture().decode("utf-8-sig") + "\n支給額合計,15000"
         with self.assertRaises(CsvValidationError):
             parse_payroll(data.encode("utf-8"))
 

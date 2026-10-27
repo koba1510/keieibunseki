@@ -66,11 +66,13 @@ def analyze_matches(payload: dict) -> dict:
     return {"unmatched": unmatched, "warnings": warnings}
 
 
-def preview_import(content: bytes, kind: str, user, selected_months=None) -> ImportJob:
+def preview_import(content: bytes, kind: str, user, selected_months=None, skip_employee_codes=None) -> ImportJob:
     if kind not in PARSERS:
         raise CsvValidationError("未対応のCSV種別です。")
     if kind == "SUPPLIES":
         payload = PARSERS[kind](content, selected_months)
+    elif kind == "PAYROLL":
+        payload = PARSERS[kind](content, skip_employee_codes=set(skip_employee_codes or []))
     else:
         payload = PARSERS[kind](content)
     matches = analyze_matches(payload)

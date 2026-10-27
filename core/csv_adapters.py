@@ -131,24 +131,28 @@ def parse_royalty(content: bytes) -> dict:
 
 
 PAYROLL_LABELS = {
-    "total_payment": "支給額合計",
-    "health_employee_deduction": "健康保険料",
-    "care_employee_deduction": "介護保険料",
-    "pension_employee_deduction": "厚生年金保険",
+    "payment_base": "支給額合計",
+    "other_total": "その他合計",
+    "social_insurance_total": "社会保険料合計",
+    "employment_insurance": "雇用保険料",
 }
 
 
-def parse_payroll(content: bytes) -> dict:
+def parse_payroll(content: bytes, skip_employee_codes: set[str] | None = None) -> dict:
     rows = read_rows(content)
     if len(rows) < 3:
         raise CsvValidationError("給与CSVの行が不足しています。")
     month = parse_month_text(" ".join(rows[0]))
     headers = rows[1]
+    skip_employee_codes = {code.strip() for code in (skip_employee_codes or set())}
     employees = []
     for column, header in enumerate(headers):
         match = re.search(r"(.+?)\s*[（(]\s*([^）)]+)\s*[）)]", header)
         if match:
-            employees.append({"column": column, "name": match.group(1).strip(), "employee_code": match.group(2).strip()})
+            code = match.group(2).strip()
+            if code in skip_employee_codes:
+                continue
+            employees.append({"column": column, "name": match.group(1).strip(), "employee_code": code})
     if not employees:
         raise CsvValidationError("2行目に従業員列がありません。")
     label_rows = {}
@@ -165,12 +169,22 @@ def parse_payroll(content: bytes) -> dict:
             if column >= len(row):
                 raise CsvValidationError(f"{employee['employee_code']} の給与列が不足しています。")
             values[key] = parse_money(row[column], blank_zero=True)
-        social = (
-            values["health_employee_deduction"]
-            + values["care_employee_deduction"]
-            + values["pension_employee_deduction"]
+        total_payment = values["payment_base"] + values["other_total"]
+        employer_social = values["social_insurance_total"] + int(round(values["employment_insurance"] * 2.3))
+        result.append(
+            {
+                **employee,
+                "total_payment": total_payment,
+                "health_employee_deduction": 0,
+                "care_employee_deduction": 0,
+                "pension_employee_deduction": 0,
+                "employer_social_estimate": employer_social,
+                "payment_base": values["payment_base"],
+                "other_total": values["other_total"],
+                "social_insurance_total": values["social_insurance_total"],
+                "employment_insurance": values["employment_insurance"],
+            }
         )
-        result.append({**employee, **values, "employer_social_estimate": social})
     return {"kind": "PAYROLL", "months": [month], "rows": result}
 
 
