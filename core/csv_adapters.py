@@ -193,20 +193,23 @@ def parse_supplies(content: bytes, selected_months: list[str] | None = None) -> 
     if len(rows) < 5:
         raise CsvValidationError("備品CSVの行が不足しています。")
     max_columns = max(len(row) for row in rows[:3])
+    header_years = [int(value) for value in re.findall(r"(20\d{2})\s*年", " ".join(" ".join(row) for row in rows[:3]))]
+    fiscal_start_year = header_years[0] if header_years else None
     month_columns = {}
-    current_year = None
     current_month = None
-    for column in range(4, max_columns):
+    for column in range(0, max_columns):
         top = [rows[index][column] if column < len(rows[index]) else "" for index in range(3)]
         joined = " ".join(top)
-        year_match = re.search(r"(20\d{2})\s*年?", joined)
         month_match = re.search(r"(1[0-2]|0?[1-9])\s*月", joined)
-        if year_match:
-            current_year = int(year_match.group(1))
         if month_match:
             current_month = int(month_match.group(1))
-        if any(cell.strip() == "合計" for cell in top) and current_year and current_month:
-            month_columns[f"{current_year:04d}-{current_month:02d}"] = column
+        if not any(cell.strip() == "合計" for cell in top) or current_month is None:
+            continue
+        if fiscal_start_year is None:
+            raise CsvValidationError("ヘッダーから会計年度の年を特定できません。")
+        # 会計年度は8月始まり。8〜12月は開始年、1〜7月は翌年。
+        year = fiscal_start_year if current_month >= 8 else fiscal_start_year + 1
+        month_columns[f"{year:04d}-{current_month:02d}"] = column
     if not month_columns:
         raise CsvValidationError("1〜3行目から月別の「合計」列を特定できません。")
     months = selected_months or sorted(month_columns)
@@ -216,11 +219,12 @@ def parse_supplies(content: bytes, selected_months: list[str] | None = None) -> 
     detail_rows = []
     total_row = None
     for row in rows[3:]:
-        name = row[3].strip() if len(row) > 3 else ""
-        if not name:
-            continue
-        if "全体合計" in name or name == "合計":
+        head = " ".join(cell.strip() for cell in row[:4])
+        if "全体合計" in head:
             total_row = row
+            continue
+        name = row[3].strip() if len(row) > 3 else ""
+        if not name or name == "合計":
             continue
         detail_rows.append(row)
     if total_row is None:
