@@ -12,8 +12,9 @@ class ViewTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="admin@example.com", email="admin@example.com", password="strong-password-123"
         )
-        self.group = FacilityGroup.objects.create(name="本部")
+        self.group = FacilityGroup.objects.create(id="GRP001", name="本部")
         self.facility = Facility.objects.create(
+            id="FAC0062",
             official_name="本部",
             type=Facility.Type.HQ,
             facility_group=self.group,
@@ -41,6 +42,7 @@ class ViewTests(TestCase):
         response = self.client.post(
             reverse("facilities"),
             {
+                "id": "FAC0001",
                 "official_name": "上永谷店",
                 "pos_store_code": "071",
                 "type": "STORE",

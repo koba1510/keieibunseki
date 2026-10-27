@@ -1,19 +1,18 @@
-import uuid
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
 
 class FacilityGroup(models.Model):
+    id = models.CharField("拠点ID", max_length=32, primary_key=True)
     name = models.CharField("所属拠点名", max_length=120, unique=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["id"]
 
     def __str__(self):
-        return self.name
+        return f"{self.id} {self.name}"
 
 
 class Facility(models.Model):
@@ -32,7 +31,7 @@ class Facility(models.Model):
         ACTIVE = "ACTIVE", "営業中"
         CLOSED = "CLOSED", "閉店"
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.CharField("施設ID", max_length=32, primary_key=True)
     official_name = models.CharField("正式名称", max_length=160)
     pos_store_code = models.CharField("POS店舗コード", max_length=32, null=True, blank=True, unique=True)
     type = models.CharField("種別", max_length=12, choices=Type.choices)
@@ -44,11 +43,11 @@ class Facility(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["official_name"]
+        ordering = ["id"]
         indexes = [models.Index(fields=["type", "deleted_at"])]
 
     def __str__(self):
-        return self.official_name
+        return f"{self.id} {self.official_name}"
 
 
 class FacilityAlias(models.Model):

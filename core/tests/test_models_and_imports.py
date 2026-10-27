@@ -29,8 +29,9 @@ def csv_bytes(rows):
 
 class DomainTests(TestCase):
     def setUp(self):
-        self.group = FacilityGroup.objects.create(name="第1拠点")
+        self.group = FacilityGroup.objects.create(id="GRP001", name="第1拠点")
         self.store = Facility.objects.create(
+            id="FAC0001",
             official_name="上永谷店",
             pos_store_code="071",
             type=Facility.Type.STORE,
@@ -38,6 +39,7 @@ class DomainTests(TestCase):
             ownership=Facility.Ownership.FC,
         )
         self.other_store = Facility.objects.create(
+            id="FAC0002",
             official_name="別店舗",
             pos_store_code="072",
             type=Facility.Type.STORE,
@@ -182,6 +184,7 @@ class DomainTests(TestCase):
 
     def test_non_store_does_not_require_sales_or_royalty(self):
         factory = Facility.objects.create(
+            id="FAC0099",
             official_name="工場",
             type=Facility.Type.FACTORY,
             facility_group=self.group,

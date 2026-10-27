@@ -15,13 +15,13 @@ class StyledModelForm(forms.ModelForm):
 class FacilityGroupForm(StyledModelForm):
     class Meta:
         model = FacilityGroup
-        fields = ["name"]
+        fields = ["id", "name"]
 
 
 class FacilityForm(StyledModelForm):
     class Meta:
         model = Facility
-        fields = ["official_name", "pos_store_code", "type", "facility_group", "ownership", "status"]
+        fields = ["id", "official_name", "pos_store_code", "type", "facility_group", "ownership", "status"]
 
 
 class FacilityAliasForm(StyledModelForm):

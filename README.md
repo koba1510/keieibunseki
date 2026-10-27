@@ -48,6 +48,17 @@ python3 -m venv .venv
 
 UTF-8（BOM含む）とCP932、最大10MBに対応します。プレビューは集計データを更新しません。未照合項目がある場合は、施設・CSV別名または従業員・所属履歴を登録してから確定してください。確定時は対象月だけをトランザクション置換します。
 
+## 初期マスタ取込
+
+`data/` 配下の3CSVを拠点→施設→従業員の順で取り込みます。施設IDは `FAC0001` 形式、拠点IDは `GRP001` 形式をそのまま使います。運営区分が空欄の施設は `NA`（対象外）で登録します。
+
+```bash
+docker compose exec web python manage.py import_initial_masters \
+  --groups /app/data/01_拠点マスタ_初期登録.csv \
+  --facilities /app/data/02_店舗施設マスタ_初期登録.csv \
+  --employees /app/data/03_従業員マスタ_初期登録.csv
+```
+
 ## 初期従業員移行
 
 事前に施設を登録し、不変の施設IDを確認します。入力CSVの必須列:
