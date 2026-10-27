@@ -1,8 +1,6 @@
 from collections import defaultdict
 from datetime import date
 
-from django.db.models import Sum
-
 from .models import (
     DatasetImport,
     EmployeeAssignment,
@@ -37,7 +35,7 @@ def assignment_map(payroll_rows):
     for row in payroll_rows:
         items = histories.get(row.employee_id, [])
         earlier = [item for item in items if item.effective_month <= row.month]
-        result[row.id] = (earlier[-1] if earlier else (items[0] if items else None))
+        result[row.id] = earlier[-1] if earlier else (items[0] if items else None)
     return result
 
 
@@ -72,9 +70,7 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
         data[(row.facility_id, row.month)]["supplies"] = row.total_cost
     for row in MonthlyRoyalty.objects.filter(facility_id__in=ids, month__range=(start, end)):
         data[(row.facility_id, row.month)]["royalty"] = row.fee_tax_inclusive
-    payroll = list(
-        MonthlyPayroll.objects.filter(month__range=(start, end)).select_related("employee")
-    )
+    payroll = list(MonthlyPayroll.objects.filter(month__range=(start, end)).select_related("employee"))
     assignments = assignment_map(payroll)
     unassigned_labor = 0
     labor_keys = set()
@@ -95,31 +91,44 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
         for row in DatasetImport.objects.filter(month__range=(start, end), status="COMPLETED")
     }
     for cell in data.values():
+        facility = cell["facility"]
         month = cell["month"]
-        if ("SALES", month) in imported and cell["sales"] is None:
+        is_store = facility.type == Facility.Type.STORE
+        if is_store and ("SALES", month) in imported and cell["sales"] is None:
             cell["sales"] = 0
             cell["cleaning_sales"] = 0
         if ("PAYROLL", month) in imported and cell["labor"] is None:
             cell["labor"] = 0
         if ("SUPPLIES", month) in imported and cell["supplies"] is None:
             cell["supplies"] = 0
-        if ("ROYALTY", month) in imported and cell["royalty"] is None:
-            cell["royalty"] = 0
+        if is_store:
+            if facility.ownership == Facility.Ownership.DIRECT:
+                cell["royalty"] = 0 if ("ROYALTY", month) in imported else None
+            elif facility.ownership == Facility.Ownership.FC:
+                # 取込済み月でも明細欠落は0円にせず未確定のまま残す
+                if ("ROYALTY", month) not in imported:
+                    cell["royalty"] = None
+            else:
+                cell["royalty"] = 0 if ("ROYALTY", month) in imported else None
+        else:
+            cell["sales"] = None
+            cell["cleaning_sales"] = None
+            cell["royalty"] = None
     totals = {"sales": 0, "labor": 0, "supplies": 0, "royalty": 0, "balance": 0}
     monthly = []
     ranking = defaultdict(lambda: {"sales": 0, "balance": 0, "facility": None})
     by_type = defaultdict(lambda: {"sales": 0, "cost": 0, "balance": 0})
     for cell in data.values():
         facility = cell["facility"]
-        month = cell["month"]
-        if facility.type == Facility.Type.STORE and facility.ownership == Facility.Ownership.DIRECT:
-            cell["royalty"] = 0 if ("ROYALTY", month) in imported else None
         selected_sales = cell["sales"] if sales_basis == "total" else cell["cleaning_sales"]
-        values = [selected_sales, cell["labor"], cell["supplies"], cell["royalty"]]
-        cell["provisional"] = any(value is None for value in values)
-        cell["balance"] = None if selected_sales is None else selected_sales - sum(
-            value or 0 for value in values[1:]
-        )
+        if facility.type == Facility.Type.STORE:
+            values = [selected_sales, cell["labor"], cell["supplies"], cell["royalty"]]
+            cell["provisional"] = any(value is None for value in values)
+            cell["balance"] = None if selected_sales is None else selected_sales - sum(value or 0 for value in values[1:])
+        else:
+            values = [cell["labor"], cell["supplies"]]
+            cell["provisional"] = any(value is None for value in values)
+            cell["balance"] = None if cell["provisional"] else -( (cell["labor"] or 0) + (cell["supplies"] or 0) )
         totals["sales"] += selected_sales or 0
         totals["labor"] += cell["labor"] or 0
         totals["supplies"] += cell["supplies"] or 0
@@ -139,14 +148,16 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
         monthly.append(
             {
                 "month": month,
-                "sales": sum((cell["sales"] if sales_basis == "total" else cell["cleaning_sales"]) or 0 for cell in cells),
-                "cost": sum((cell["labor"] or 0) + (cell["supplies"] or 0) + (cell["royalty"] or 0) for cell in cells),
-                "provisional": any(cell["provisional"] for cell in cells),
+                "sales": sum(
+                    (cell["sales"] if sales_basis == "total" else cell["cleaning_sales"]) or 0 for cell in cells
+                ),
+                "cost": sum(
+                    (cell["labor"] or 0) + (cell["supplies"] or 0) + (cell["royalty"] or 0) for cell in cells
+                ),
+                "provisional": (not cells) or any(cell["provisional"] for cell in cells),
             }
         )
         monthly[-1]["balance"] = monthly[-1]["sales"] - monthly[-1]["cost"]
-        if not cells:
-            monthly[-1]["provisional"] = True
     return {
         "totals": totals,
         "monthly": monthly,
@@ -154,5 +165,5 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
         "ranking": sorted(ranking.values(), key=lambda item: item["balance"], reverse=True),
         "rows": sorted(data.values(), key=lambda item: (item["month"], item["facility"].official_name)),
         "unassigned_labor": unassigned_labor,
-        "is_provisional": any(cell["provisional"] for cell in data.values()),
+        "is_provisional": any(cell["provisional"] for cell in data.values()) if data else True,
     }

@@ -179,3 +179,46 @@ class DomainTests(TestCase):
         commit_import(preview_import(payroll, "PAYROLL", user))
         self.employee.refresh_from_db()
         self.assertIsNone(self.employee.hidden_at)
+
+    def test_non_store_does_not_require_sales_or_royalty(self):
+        factory = Facility.objects.create(
+            official_name="工場",
+            type=Facility.Type.FACTORY,
+            facility_group=self.group,
+            ownership=Facility.Ownership.NA,
+        )
+        user = get_user_model().objects.create_user(username="factory@example.com")
+        job = ImportJob.objects.create(
+            idempotency_key="factory-marker",
+            data_kind="PAYROLL",
+            state=ImportJob.State.COMPLETED,
+            requested_by=user,
+        )
+        DatasetImport.objects.create(data_kind="PAYROLL", month=date(2026, 9, 1), content_checksum="x", job=job)
+        DatasetImport.objects.create(data_kind="SUPPLIES", month=date(2026, 9, 1), content_checksum="y", job=job)
+        MonthlySupplies = __import__("core.models", fromlist=["MonthlySupplies"]).MonthlySupplies
+        MonthlySupplies.objects.create(facility=factory, month=date(2026, 9, 1), total_cost=1000)
+        result = dashboard_data(date(2026, 9, 1), date(2026, 9, 1), [str(factory.pk)])
+        row = result["rows"][0]
+        self.assertIsNone(row["sales"])
+        self.assertEqual(row["supplies"], 1000)
+        self.assertFalse(row["provisional"])
+
+    def test_fc_missing_royalty_row_stays_unimported_after_month_import(self):
+        user = get_user_model().objects.create_user(username="royalty@example.com")
+        job = ImportJob.objects.create(
+            idempotency_key="royalty-marker",
+            data_kind="ROYALTY",
+            state=ImportJob.State.COMPLETED,
+            requested_by=user,
+        )
+        DatasetImport.objects.create(data_kind="ROYALTY", month=date(2026, 9, 1), content_checksum="r", job=job)
+        DatasetImport.objects.create(data_kind="SALES", month=date(2026, 9, 1), content_checksum="s", job=job)
+        DatasetImport.objects.create(data_kind="PAYROLL", month=date(2026, 9, 1), content_checksum="p", job=job)
+        DatasetImport.objects.create(data_kind="SUPPLIES", month=date(2026, 9, 1), content_checksum="u", job=job)
+        MonthlySales.objects.create(facility=self.store, month=date(2026, 9, 1), sales_total=1000, cleaning_sales=800)
+        result = dashboard_data(date(2026, 9, 1), date(2026, 9, 1), [str(self.store.pk)])
+        row = result["rows"][0]
+        self.assertIsNone(row["royalty"])
+        self.assertTrue(row["provisional"])
+
