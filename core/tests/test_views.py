@@ -22,7 +22,7 @@ class ViewTests(TestCase):
 
     def test_dashboard_requires_login(self):
         response = self.client.get(reverse("dashboard"))
-        self.assertRedirects(response, f"{reverse('login')}?next=/")
+        self.assertRedirects(response, f"{reverse('login')}?next=/dashboard/")
 
     def test_login_and_dashboard(self):
         self.assertTrue(self.client.login(username="admin@example.com", password="strong-password-123"))

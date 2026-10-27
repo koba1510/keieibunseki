@@ -145,6 +145,8 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
             }
         )
         monthly[-1]["balance"] = monthly[-1]["sales"] - monthly[-1]["cost"]
+        if not cells:
+            monthly[-1]["provisional"] = True
     return {
         "totals": totals,
         "monthly": monthly,

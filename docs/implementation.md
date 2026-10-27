@@ -4,7 +4,7 @@
 
 | 領域 | 対応内容 |
 |---|---|
-| 基盤 | Django 6.1、PostgreSQL 18、Docker Compose、環境変数、migration |
+| 基盤 | Django 6.1、PostgreSQL 17、Docker Compose、環境変数、migration |
 | 認証 | 安全なDjangoセッション、パスワードハッシュ、全業務画面/APIのログイン必須化、管理者追加 |
 | 施設 | 所属拠点、施設種別、FC/直営、営業状態、論理削除・復元、CSV種別別名 |
 | 従業員 | 文字列コード、非表示・復帰、月別所属履歴、初回履歴削除防止、影響月API |

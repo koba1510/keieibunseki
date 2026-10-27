@@ -13,6 +13,8 @@ docker compose up -d --build
 docker compose exec web python manage.py create_initial_admin
 ```
 
+Composeの`web`はDBへ `host.docker.internal`（公開ポート5432）経由で接続します。通常のサービス名`db`接続が使える環境では、`compose.yaml`の`POSTGRES_HOST`を`db`に変更しても構いません。
+
 <http://localhost:8000/login/> を開き、`ADMIN_EMAIL` / `ADMIN_PASSWORD` でログインします。
 
 停止:
