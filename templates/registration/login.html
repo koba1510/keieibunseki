@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}ログイン | FC経営管理{% endblock %}
+{% block content %}
+<section class="login-card">
+  <h1>FC経営管理</h1>
+  <p class="muted">管理者アカウントでログイン</p>
+  {% if form.errors %}<div class="message error">メールアドレスまたはパスワードが正しくありません。</div>{% endif %}
+  <form method="post">{% csrf_token %}
+    <label>メールアドレス</label>
+    <input type="text" name="username" autocomplete="username" required autofocus>
+    <label>パスワード</label>
+    <input type="password" name="password" autocomplete="current-password" required>
+    <button type="submit" class="primary full">ログイン</button>
+  </form>
+</section>
+{% endblock %}

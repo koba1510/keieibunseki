@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}従業員 | FC経営管理{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>従業員マスタ</h1><p>従業員コードは先頭ゼロを保持します。</p></div></div>
+<form method="get" class="filters"><input name="q" value="{{ request.GET.q }}" placeholder="氏名・従業員コード"><select name="facility"><option value="">全施設</option>{% for item in facilities %}<option value="{{ item.pk }}">{{ item.official_name }}</option>{% endfor %}</select><label class="check"><input type="checkbox" name="hidden" value="1" {% if request.GET.hidden == "1" %}checked{% endif %}>非表示も表示</label><button>検索</button></form>
+<div class="two-column"><section class="panel wide"><table><thead><tr><th>コード</th><th>氏名</th><th>状態</th></tr></thead><tbody>{% for item in page %}<tr><td><a href="{% url 'employee_detail' item.pk %}">{{ item.employee_code }}</a></td><td>{{ item.name }}</td><td>{% if item.hidden_at %}非表示{% else %}有効{% endif %}</td></tr>{% empty %}<tr><td colspan="3">従業員がいません。</td></tr>{% endfor %}</tbody></table><div class="pagination">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">前へ</a>{% endif %}<span>{{ page.number }} / {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}">次へ</a>{% endif %}</div></section><section class="panel"><h2>従業員を追加</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary">登録</button></form></section></div>
+{% endblock %}

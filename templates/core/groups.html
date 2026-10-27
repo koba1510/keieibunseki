@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}所属拠点 | FC経営管理{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>所属拠点</h1><p>施設をまとめる現在の集計グループです。</p></div></div>
+<div class="two-column"><section class="panel wide"><table><thead><tr><th>名称</th><th>施設数</th><th></th></tr></thead><tbody>{% for item in items %}<tr><td>{{ item.name }}</td><td>{{ item.facility_set.count }}</td><td><form method="post" action="{% url 'group_delete' item.pk %}">{% csrf_token %}<button class="danger small">削除</button></form></td></tr>{% empty %}<tr><td colspan="3">所属拠点がありません。</td></tr>{% endfor %}</tbody></table></section><section class="panel"><h2>追加</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary">登録</button></form></section></div>
+{% endblock %}

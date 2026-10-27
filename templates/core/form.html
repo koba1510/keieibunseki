@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="breadcrumbs"><a href="{{ cancel_url }}">戻る</a> / {{ title }}</p>
+<section class="panel form-panel"><h1>{{ title }}</h1><form method="post">{% csrf_token %}{{ form.as_p }}<div class="actions"><button class="primary">保存</button><a class="button" href="{{ cancel_url }}">キャンセル</a></div></form></section>
+{% endblock %}

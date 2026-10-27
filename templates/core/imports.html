@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}CSV取込 | FC経営管理{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>CSV取込</h1><p>原本CSVを解析し、プレビュー後に月単位で置換します。</p></div></div>
+<section class="panel form-panel">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    <label>CSV種別</label><select name="kind" required><option value="SALES">売上</option><option value="ROYALTY">FCロイヤリティ</option><option value="PAYROLL">給与</option><option value="SUPPLIES">備品</option></select>
+    <label>CSVファイル</label><input type="file" name="file" accept=".csv,text/csv" required>
+    <label>備品の選択月（任意・カンマ区切り）</label><input name="selected_months" placeholder="2026-08,2026-09">
+    <p class="muted">UTF-8（BOM含む）とCP932、最大10MBに対応。プレビューでは集計データを変更しません。</p>
+    <button class="primary">プレビュー</button>
+  </form>
+</section>
+<section class="panel"><h2>処理の流れ</h2><ol><li>種別・年月・構造・合計を検証</li><li>未照合マスタを確認し、施設／従業員画面で登録</li><li>確定時に再照合し、対象月をトランザクション置換</li></ol></section>
+{% endblock %}
