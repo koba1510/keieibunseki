@@ -167,3 +167,90 @@ def dashboard_data(start: date, end: date, facility_ids=None, group_ids=None, sa
         "unassigned_labor": unassigned_labor,
         "is_provisional": any(cell["provisional"] for cell in data.values()) if data else True,
     }
+
+
+def fiscal_year_bounds(month: date) -> tuple[date, date]:
+    if month.month >= 8:
+        start = date(month.year, 8, 1)
+    else:
+        start = date(month.year - 1, 8, 1)
+    end = add_months(start, 11)
+    return start, end
+
+
+def _month_payload(cell: dict) -> dict:
+    sales = cell["sales"]
+    labor = cell["labor"]
+    supplies = cell["supplies"]
+    royalty = cell["royalty"]
+    expense_complete = labor is not None and supplies is not None and royalty is not None
+    expense = (labor + supplies + royalty) if expense_complete else None
+    balance = None if sales is None or expense is None else sales - expense
+    return {
+        "month": cell["month"].strftime("%Y-%m"),
+        "label": f"{cell['month'].year}年{cell['month'].month}月",
+        "sales": sales,
+        "labor": labor,
+        "supplies": supplies,
+        "royalty": royalty,
+        "expense": expense,
+        "balance": balance,
+        "sales_missing": sales is None,
+        "expense_missing": expense is None,
+        "provisional": cell["provisional"],
+    }
+
+
+def store_pnl_data(facility: Facility, selected: date) -> dict:
+    rolling_start = add_months(selected, -11)
+    yoy_month = add_months(selected, -12)
+    fiscal_start, fiscal_end = fiscal_year_bounds(selected)
+    range_start = min(rolling_start, fiscal_start, yoy_month)
+    range_end = max(selected, fiscal_end)
+    bundle = dashboard_data(range_start, range_end, [str(facility.pk)], None, "total")
+    by_month = {row["month"]: row for row in bundle["rows"]}
+    months = []
+    for month in month_range(range_start, range_end):
+        cell = by_month.get(month)
+        if cell is None:
+            cell = {
+                "month": month,
+                "sales": None,
+                "labor": None,
+                "supplies": None,
+                "royalty": None,
+                "provisional": True,
+            }
+        months.append(_month_payload(cell))
+    selected_key = selected.strftime("%Y-%m")
+    selected_row = next(row for row in months if row["month"] == selected_key)
+    prev_key = add_months(selected, -1).strftime("%Y-%m")
+    yoy_key = yoy_month.strftime("%Y-%m")
+    prev_row = next((row for row in months if row["month"] == prev_key), None)
+    yoy_row = next((row for row in months if row["month"] == yoy_key), None)
+    return {
+        "facility": {
+            "id": facility.pk,
+            "name": facility.official_name,
+            "ownership": facility.ownership,
+        },
+        "selected_month": selected_key,
+        "selected": selected_row,
+        "previous": prev_row,
+        "year_ago": yoy_row,
+        "rolling_months": [row["month"] for row in months if rolling_start <= date.fromisoformat(f'{row["month"]}-01') <= selected],
+        "fiscal_months": [row["month"] for row in months if fiscal_start <= date.fromisoformat(f'{row["month"]}-01') <= fiscal_end],
+        "months": months,
+        "fiscal_label": f"{fiscal_start.year}年8月〜{fiscal_end.year}年7月",
+    }
+
+
+def compare_metric(current, baseline):
+    if current is None:
+        return {"delta": None, "rate": None, "status": "missing_current"}
+    if baseline is None:
+        return {"delta": None, "rate": None, "status": "missing_baseline"}
+    delta = current - baseline
+    if baseline == 0:
+        return {"delta": delta, "rate": None, "status": "zero_baseline"}
+    return {"delta": delta, "rate": delta / baseline, "status": "ok"}

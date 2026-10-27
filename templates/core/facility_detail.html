@@ -2,7 +2,7 @@
 {% block title %}{{ item.official_name }} | FC経営管理{% endblock %}
 {% block breadcrumbs %}<p class="breadcrumbs"><a href="{% url 'facilities' %}">施設</a> / {{ item.official_name }}</p>{% endblock %}
 {% block content %}
-<div class="page-title"><div><h1>{{ item.official_name }}</h1><p>{{ item.get_type_display }}・{{ item.facility_group.name }}・{{ item.get_ownership_display }}</p></div><a class="button" href="{% url 'facility_edit' item.pk %}">編集</a></div>
+<div class="page-title"><div><h1>{{ item.official_name }}</h1><p>{{ item.get_type_display }}・{{ item.facility_group.name }}・{{ item.get_ownership_display }}</p></div><div class="actions" style="margin:0">{% if item.type == "STORE" %}<a class="button primary" href="{% url 'store_pnl' %}?facility={{ item.pk }}">店舗別収支</a>{% endif %}<a class="button" href="{% url 'facility_edit' item.pk %}">編集</a></div></div>
 <div class="two-column">
   <section class="panel"><h2>基本情報</h2><dl><dt>POS店舗コード</dt><dd>{{ item.pos_store_code|default:"—" }}</dd><dt>営業状態</dt><dd>{{ item.get_status_display }}</dd><dt>削除状態</dt><dd>{% if item.deleted_at %}削除済み{% else %}有効{% endif %}</dd></dl><form method="post" action="{% url 'facility_toggle_deleted' item.pk %}" onsubmit="return confirm('集計対象が変わります。実行しますか？')">{% csrf_token %}<button class="danger">{% if item.deleted_at %}復元{% else %}論理削除{% endif %}</button></form></section>
   <section class="panel"><h2>CSV別名</h2><ul>{% for alias in item.aliases.all %}<li>{{ alias.get_source_kind_display }}: {{ alias.source_name }}</li>{% empty %}<li>登録なし</li>{% endfor %}</ul><form method="post">{% csrf_token %}{{ alias_form.as_p }}<button class="primary">別名を追加</button></form></section>

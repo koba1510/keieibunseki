@@ -1,4 +1,3 @@
-import json
 from datetime import date
 
 from django.contrib import messages
@@ -11,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .analytics import add_months, dashboard_data
+from .analytics import add_months, compare_metric, dashboard_data, store_pnl_data
 from .csv_adapters import CsvValidationError
 from .forms import (
     AdminUserCreationForm,
@@ -334,4 +333,71 @@ def api_import_job(request, pk):
             "data_kind": job.data_kind,
             "result": job.result_summary,
         }
+    )
+
+
+@login_required
+def store_pnl(request):
+    stores = list(
+        Facility.objects.filter(deleted_at__isnull=True, type=Facility.Type.STORE)
+        .select_related("facility_group")
+        .order_by("official_name")
+    )
+    if not stores:
+        return render(request, "core/store_pnl.html", {"stores": [], "payload": None})
+    facility_id = request.GET.get("facility") or stores[0].pk
+    facility = next((item for item in stores if str(item.pk) == str(facility_id)), stores[0])
+    today = timezone.localdate().replace(day=1)
+    selected = parse_month(request.GET.get("month"), today)
+    period = request.GET.get("period", "rolling12")
+    if period not in {"rolling12", "fiscal"}:
+        period = "rolling12"
+    compare = request.GET.get("compare", "mom")
+    if compare not in {"mom", "yoy"}:
+        compare = "mom"
+    payload = store_pnl_data(facility, selected)
+    baseline = payload["previous"] if compare == "mom" else payload["year_ago"]
+    metrics = ["sales", "labor", "supplies", "royalty", "expense", "balance"]
+    comparison_rows = []
+    for key in metrics:
+        current_value = payload["selected"].get(key)
+        baseline_value = baseline.get(key) if baseline else None
+        compared = compare_metric(current_value, baseline_value)
+        if compared["rate"] is not None:
+            compared["rate_percent"] = compared["rate"] * 100
+        else:
+            compared["rate_percent"] = None
+        comparison_rows.append(
+            {
+                "key": key,
+                "label": {
+                    "sales": "売上合計",
+                    "labor": "人件費",
+                    "supplies": "備品費",
+                    "royalty": "FCロイヤリティ",
+                    "expense": "支出合計",
+                    "balance": "差引収支",
+                }[key],
+                "current": current_value,
+                "baseline": baseline_value,
+                **compared,
+            }
+        )
+    prev_month = add_months(selected, -1)
+    next_month = add_months(selected, 1)
+    return render(
+        request,
+        "core/store_pnl.html",
+        {
+            "stores": stores,
+            "facility": facility,
+            "selected": selected,
+            "prev_month": prev_month,
+            "next_month": next_month,
+            "period": period,
+            "compare": compare,
+            "payload": payload,
+            "baseline": baseline,
+            "comparison_rows": comparison_rows,
+                    },
     )

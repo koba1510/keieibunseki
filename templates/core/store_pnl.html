@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load ja_format %}
+{% block title %}店舗別収支 | FC経営管理{% endblock %}
+{% block breadcrumbs %}<p class="breadcrumbs">ホーム / 店舗別収支</p>{% endblock %}
+{% block content %}
+{% if not stores %}
+<section class="panel"><h1>店舗別収支</h1><p>表示できる店舗がありません。施設マスタで店舗を登録してください。</p></section>
+{% else %}
+<div class="page-title"><div><h1>店舗別収支</h1><p>{{ facility.official_name }} ／ {{ selected|jp_month }}</p></div>{% if payload.selected.provisional %}<span class="badge warning">暫定</span>{% endif %}</div>
+
+<form method="get" class="filters store-controls" id="store-controls">
+  <label>店舗
+    <select name="facility" onchange="this.form.submit()">
+      {% for store in stores %}
+      <option value="{{ store.pk }}" {% if store.pk == facility.pk %}selected{% endif %}>{{ store.official_name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>対象年月
+    <input type="month" name="month" value="{{ selected|date:'Y-m' }}" onchange="this.form.submit()">
+  </label>
+  <input type="hidden" name="period" value="{{ period }}">
+  <input type="hidden" name="compare" value="{{ compare }}">
+  <a class="button" href="?facility={{ facility.pk }}&month={{ prev_month|date:'Y-m' }}&period={{ period }}&compare={{ compare }}">前月</a>
+  <a class="button" href="?facility={{ facility.pk }}&month={{ next_month|date:'Y-m' }}&period={{ period }}&compare={{ compare }}">翌月</a>
+</form>
+
+<section class="panel" id="area1">
+  <h2>① 当月の売上と支出</h2>
+  <div class="pnl-summary">
+    <article><span>売上合計</span><strong>{% if payload.selected.sales is None %}未取込{% else %}{{ payload.selected.sales|yen }}{% endif %}</strong></article>
+    <article><span>支出合計</span><strong>{% if payload.selected.expense is None %}未取込{% else %}{{ payload.selected.expense|yen }}{% endif %}</strong></article>
+    <article class="accent"><span>差引収支</span><strong>{% if payload.selected.balance is None %}未取込{% else %}{{ payload.selected.balance|yen }}{% endif %}</strong></article>
+  </div>
+  <div class="hbar-block" id="area1-charts"></div>
+  <div class="legend">
+    <span><i class="swatch sales"></i>売上合計</span>
+    <span><i class="swatch labor"></i>人件費</span>
+    <span><i class="swatch supplies"></i>備品費</span>
+    <span><i class="swatch royalty"></i>FCロイヤリティ</span>
+  </div>
+</section>
+
+<section class="panel" id="area2">
+  <div class="panel-head">
+    <h2>② 月次推移</h2>
+    <div class="seg">
+      <a class="seg-item {% if period == 'rolling12' %}active{% endif %}" href="?facility={{ facility.pk }}&month={{ selected|date:'Y-m' }}&period=rolling12&compare={{ compare }}">直近12か月（選択月まで）</a>
+      <a class="seg-item {% if period == 'fiscal' %}active{% endif %}" href="?facility={{ facility.pk }}&month={{ selected|date:'Y-m' }}&period=fiscal&compare={{ compare }}">今期（{{ payload.fiscal_label }}）</a>
+    </div>
+  </div>
+  <p class="muted">各月の棒をクリックすると選択月が切り替わり、画面全体が連動します。</p>
+  <div class="vbar-wrap" id="area2-charts"></div>
+</section>
+
+<section class="panel" id="area3">
+  <div class="panel-head">
+    <h2>③ 比較</h2>
+    <div class="seg">
+      <a class="seg-item {% if compare == 'mom' %}active{% endif %}" href="?facility={{ facility.pk }}&month={{ selected|date:'Y-m' }}&period={{ period }}&compare=mom">前月比</a>
+      <a class="seg-item {% if compare == 'yoy' %}active{% endif %}" href="?facility={{ facility.pk }}&month={{ selected|date:'Y-m' }}&period={{ period }}&compare=yoy">前年同月比</a>
+    </div>
+  </div>
+  {% if not baseline %}
+  <div class="message warning">比較データなし</div>
+  {% else %}
+  <p class="muted">比較対象：{{ baseline.label }} ／ 当月：{{ payload.selected.label }}</p>
+  <div class="compare-bars" id="area3-charts"></div>
+  <table class="compare-table">
+    <thead><tr><th>項目</th><th>当月</th><th>比較月</th><th>増減額</th><th>増減率</th></tr></thead>
+    <tbody>
+      {% for row in comparison_rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td>{% if row.current is None %}未取込{% else %}{{ row.current|yen }}{% endif %}</td>
+        <td>{% if row.baseline is None %}比較データなし{% else %}{{ row.baseline|yen }}{% endif %}</td>
+        <td>{% if row.delta is None %}{% if row.status == 'missing_baseline' %}比較データなし{% else %}未取込{% endif %}{% else %}{{ row.delta|yen }}{% endif %}</td>
+        <td>{% if row.status == 'zero_baseline' %}—{% elif row.rate_percent is None %}{% if row.status == 'missing_baseline' %}比較データなし{% else %}未取込{% endif %}{% else %}{{ row.rate_percent|floatformat:1 }}%{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+{{ payload|json_script:"store-pnl-data" }}
+<script>
+(() => {
+  const payload = JSON.parse(document.getElementById('store-pnl-data').textContent);
+  const params = new URLSearchParams(window.location.search);
+  const facility = params.get('facility') || payload.facility.id;
+  const period = params.get('period') || 'rolling12';
+  const compare = params.get('compare') || 'mom';
+  const selectedMonth = payload.selected_month;
+  const COLORS = { sales: '#246bfd', labor: '#f79009', supplies: '#12b76a', royalty: '#7a5af8', muted: '#d0d5dd' };
+
+  function yen(value) {
+    if (value === null || value === undefined) return '未取込';
+    return Math.round(value).toLocaleString('ja-JP') + '円';
+  }
+  function absMax(values) {
+    return Math.max(1, ...values.map(v => Math.abs(v || 0)));
+  }
+  function navigateMonth(month) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('facility', facility);
+    url.searchParams.set('month', month);
+    url.searchParams.set('period', period);
+    url.searchParams.set('compare', compare);
+    window.location.href = url.toString();
+  }
+
+  function renderArea1() {
+    const root = document.getElementById('area1-charts');
+    const row = payload.selected;
+    const scale = absMax([row.sales || 0, row.expense || 0, (row.labor||0)+(row.supplies||0)+(row.royalty||0)]);
+    const salesWidth = row.sales == null ? 0 : (Math.abs(row.sales) / scale * 100);
+    const labor = row.labor || 0, supplies = row.supplies || 0, royalty = row.royalty || 0;
+    const expenseKnown = labor + supplies + royalty;
+    const expenseWidth = expenseKnown / scale * 100;
+    root.innerHTML = `
+      <div class="hbar-row">
+        <div class="hbar-label">売上合計</div>
+        <div class="hbar-track">${row.sales == null ? '<div class="missing">未取込</div>' : `<div class="hbar sales" style="width:${salesWidth}%"></div>`}</div>
+        <div class="hbar-value">${yen(row.sales)}</div>
+      </div>
+      <div class="hbar-row">
+        <div class="hbar-label">支出合計</div>
+        <div class="hbar-track">${row.expense == null ? `<div class="stack" style="width:${Math.max(expenseWidth, 8)}%"><div class="labor" style="flex:${labor||0.0001}"></div><div class="supplies" style="flex:${supplies||0.0001}"></div><div class="royalty" style="flex:${royalty||0.0001}"></div></div><div class="missing overlay">未取込</div>` : `<div class="stack" style="width:${expenseWidth}%"><div class="labor" style="flex:${labor||0.0001}"></div><div class="supplies" style="flex:${supplies||0.0001}"></div><div class="royalty" style="flex:${royalty||0.0001}"></div></div>`}</div>
+        <div class="hbar-value">${yen(row.expense)}</div>
+      </div>`;
+  }
+
+  function renderArea2() {
+    const root = document.getElementById('area2-charts');
+    const keys = period === 'fiscal' ? payload.fiscal_months : payload.rolling_months;
+    const rows = keys.map(key => payload.months.find(item => item.month === key)).filter(Boolean);
+    const maxVal = absMax(rows.flatMap(row => [row.sales || 0, (row.labor||0)+(row.supplies||0)+(row.royalty||0)]));
+    root.innerHTML = `<div class="vbar-chart">${rows.map(row => {
+      const salesH = row.sales == null ? 0 : Math.abs(row.sales) / maxVal * 140;
+      const labor = row.labor || 0, supplies = row.supplies || 0, royalty = row.royalty || 0;
+      const expenseH = (labor + supplies + royalty) / maxVal * 140;
+      const active = row.month === selectedMonth ? 'active' : '';
+      return `<button type="button" class="vbar-group ${active}" data-month="${row.month}" title="${row.label}">
+        <div class="vbar-pair">
+          <div class="vbar sales ${row.sales == null ? 'is-missing' : ''}" style="height:${Math.max(salesH, row.sales == null ? 8 : 0)}px"></div>
+          <div class="vbar stack ${row.expense == null ? 'is-missing' : ''}" style="height:${Math.max(expenseH, row.expense == null ? 8 : 0)}px">
+            <div class="labor" style="flex:${labor||0.0001}"></div>
+            <div class="supplies" style="flex:${supplies||0.0001}"></div>
+            <div class="royalty" style="flex:${royalty||0.0001}"></div>
+          </div>
+        </div>
+        <span>${row.label.replace(/年/, '/').replace('月','')}</span>
+      </button>`;
+    }).join('')}</div>`;
+    root.querySelectorAll('[data-month]').forEach(btn => btn.addEventListener('click', () => navigateMonth(btn.dataset.month)));
+  }
+
+  function renderArea3() {
+    const root = document.getElementById('area3-charts');
+    if (!root) return;
+    const baseline = compare === 'mom' ? payload.previous : payload.year_ago;
+    if (!baseline) return;
+    const current = payload.selected;
+    const items = [
+      { key: 'sales', label: '売上合計' },
+      { key: 'expense', label: '支出合計' },
+      { key: 'balance', label: '差引収支' },
+    ];
+    const maxVal = absMax(items.flatMap(item => [current[item.key] || 0, baseline[item.key] || 0]));
+    root.innerHTML = items.map(item => {
+      const cur = current[item.key];
+      const base = baseline[item.key];
+      return `<div class="compare-item">
+        <div class="compare-label">${item.label}</div>
+        <div class="compare-track">
+          <div class="compare-col"><div class="cbar base ${base == null ? 'is-missing' : ''}" style="height:${base == null ? 8 : Math.abs(base)/maxVal*120}px"></div><small>比較月${base == null ? '（なし）' : ''}</small></div>
+          <div class="compare-col"><div class="cbar curr ${cur == null ? 'is-missing' : ''}" style="height:${cur == null ? 8 : Math.abs(cur)/maxVal*120}px"></div><small>当月${cur == null ? '（未取込）' : ''}</small></div>
+        </div>
+        <div class="compare-values"><div>${base == null ? '比較データなし' : yen(base)}</div><div>${yen(cur)}</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  renderArea1();
+  renderArea2();
+  renderArea3();
+})();
+</script>
+{% endif %}
+{% endblock %}
